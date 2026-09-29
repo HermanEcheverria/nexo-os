@@ -64,8 +64,8 @@ La configuración está en `~/.config/nexo/config.json` (se crea la primera vez)
 saludo (`name`), las carpetas de proyectos, las zonas privadas, los umbrales de los agentes y el
 modelo local (`llm`).
 
-La app de escritorio para Windows vive en su propio repositorio (`nexo-desktop`): es un cliente
-delgado de este núcleo.
+La app de escritorio para Windows vive en su propio repositorio,
+[nexo-desktop](https://github.com/HermanEcheverria/nexo-desktop): es un cliente delgado de este núcleo.
 
 ## Hoja de ruta
 

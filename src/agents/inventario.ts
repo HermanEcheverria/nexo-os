@@ -4,12 +4,18 @@ import type { Tools } from '../tools'
 
 type Snapshot = Record<string, number>
 
+/** Solo se propone mover lo que pesa al menos esto (lo pequeño no vale tu tiempo). */
+const PROPOSE_MIN_BYTES = 100 * 1024 ** 2
+
+const largestFirst = <T extends { bytes: number }>(items: T[]) =>
+  [...items].sort((a, b) => b.bytes - a.bytes)
+
 /** Discos y Descargas: qué es nuevo, qué creció y qué no se abre hace tiempo. */
 export const inventario = defineAgent<Tools>({
   name: 'inventario',
   title: 'Inventario',
   description: 'Vigila el espacio en disco y lo que se acumula en Descargas.',
-  capabilities: ['sistema.discos', 'windows.descargas'],
+  capabilities: ['sistema.discos', 'windows.descargas', 'archivos.cuarentena'],
   everyMinutes: 6 * 60,
   onLogin: true,
   async run(ctx) {
@@ -52,7 +58,7 @@ export const inventario = defineAgent<Tools>({
     const stale = items.filter((i) => old(i.modified) && old(i.accessed))
     if (stale.length) {
       const staleBytes = stale.reduce((s, i) => s + i.bytes, 0)
-      const largest = [...stale].sort((a, b) => b.bytes - a.bytes).slice(0, 5)
+      const largest = largestFirst(stale).slice(0, 5)
       await ctx.finding({
         level: 'suggestion',
         title: `${plural(stale.length, 'cosa', 'cosas')} en Descargas sin usar hace más de ${days} días`,
@@ -62,6 +68,20 @@ export const inventario = defineAgent<Tools>({
           items: largest.map((i) => ({ name: i.name, bytes: i.bytes, modified: i.modified })),
         },
       })
+
+      // Propuestas concretas: lo más pesado, uno por uno, para que decidas cada cosa
+      const big = largestFirst(stale)
+        .filter((i) => i.bytes >= PROPOSE_MIN_BYTES)
+        .slice(0, 10)
+      for (const item of big) {
+        await ctx.propose({
+          tool: 'archivos.cuarentena',
+          input: { paths: [`${downloads.path}\\${item.name}`] },
+          title: `Mover a cuarentena «${item.name}»`,
+          detail: `En Descargas, sin abrir desde ${new Date(item.accessed).toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' })}. Podrás deshacerlo durante 30 días.`,
+          bytes: item.bytes,
+        })
+      }
     }
   },
 })

@@ -52,6 +52,8 @@ aparta con su fecha y arranca con una nueva.
 pnpm install
 bin/nexo parte --actualizar   # los agentes revisan la PC y muestran el parte
 bin/nexo servicio             # modo servicio: planificador + API local en 127.0.0.1:4747
+bin/nexo acciones             # lo que proponen tus agentes
+bin/nexo aprobar|rechazar|deshacer <id>
 bin/nexo ps | logs [pid] | agentes | ejecutar <agente>
 pnpm test                     # núcleo, privacidad, agentes y lectores con datos reales
 ```
@@ -62,6 +64,6 @@ La configuración está en `~/.config/nexo/config.json` (se crea la primera vez)
 
 1. ✅ Núcleo, agentes de solo lectura y el comando `nexo`.
 2. Arranque automático al iniciar sesión en Windows, notificación y estación de trabajo.
-3. Acciones con aprobación: cuarentena de 30 días, deshacer, limpieza y orden.
+3. ✅ Acciones con aprobación: los agentes proponen, tú decides; cuarentena de 30 días con deshacer.
 4. Modelo local (Ollama en la GPU) para recibir instrucciones en español y resumir el parte.
 5. Panel web.

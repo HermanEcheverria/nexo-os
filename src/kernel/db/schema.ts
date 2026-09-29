@@ -72,3 +72,37 @@ export const memory = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.agent, t.key] })],
 )
+
+/**
+ * Acciones que proponen los agentes y que solo se ejecutan si las apruebas.
+ * pendiente → aprobada y ejecutada | rechazada | fallida → deshecha | purgada
+ */
+export const actions = sqliteTable(
+  'actions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    pid: integer('pid').notNull(),
+    agent: text('agent').notNull(),
+    /** Herramienta que cambiará la PC (riesgo write o external). */
+    tool: text('tool').notNull(),
+    /** Entrada exacta que apruebas: se ejecuta tal cual, sin que el agente la cambie. */
+    input: text('input', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    /** Huella de agente + herramienta + entrada, para no proponer lo mismo dos veces. */
+    fingerprint: text('fingerprint').notNull(),
+    title: text('title').notNull(),
+    detail: text('detail'),
+    bytes: integer('bytes'),
+    state: text('state', {
+      enum: ['pending', 'running', 'done', 'failed', 'rejected', 'undone', 'purged'],
+    }).notNull(),
+    createdAt: time('created_at').notNull().default(now),
+    decidedAt: time('decided_at'),
+    executedAt: time('executed_at'),
+    result: text('result', { mode: 'json' }).$type<unknown>(),
+    error: text('error'),
+  },
+  (t) => [
+    index('actions_state_idx').on(t.state),
+    index('actions_fingerprint_idx').on(t.fingerprint),
+  ],
+)

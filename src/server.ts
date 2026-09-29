@@ -1,5 +1,5 @@
 import { desc, eq } from 'drizzle-orm'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { streamSSE } from 'hono/streaming'
 
@@ -58,7 +58,12 @@ export function createServer<R extends Registry>(
       }
     }),
   )
-  app.get('/parte', async (c) => c.json(await buildReport(db, kernel.listAgents())))
+  app.get('/parte', async (c) =>
+    c.json({
+      ...(await buildReport(db, kernel.listAgents())),
+      pendingActions: await kernel.actions.pendingCount(),
+    }),
+  )
   app.get('/ps', async (c) =>
     c.json(
       await db
@@ -88,6 +93,26 @@ export function createServer<R extends Registry>(
     await kernel.login()
     return c.json({ ok: true })
   })
+  // Cola de aprobaciones
+  app.get('/acciones', async (c) => {
+    const filtro = c.req.query('estado')
+    if (filtro === 'pendientes') return c.json(await kernel.actions.list(['pending']))
+    if (filtro === 'deshacibles') return c.json(await kernel.actions.undoable())
+    return c.json(await kernel.actions.list(undefined, Number(c.req.query('n') ?? 50)))
+  })
+  const decide = (verb: 'approve' | 'reject' | 'undo') => async (c: Context) => {
+    const id = Number(c.req.param('id'))
+    if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'Id inválido' }, 400)
+    try {
+      return c.json(await kernel.actions[verb](id))
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 409)
+    }
+  }
+  app.post('/acciones/:id/aprobar', decide('approve'))
+  app.post('/acciones/:id/rechazar', decide('reject'))
+  app.post('/acciones/:id/deshacer', decide('undo'))
+
   app.post('/detener/:pid', (c) => c.json({ stopped: kernel.kill(Number(c.req.param('pid'))) }))
 
   return app

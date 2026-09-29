@@ -1,4 +1,5 @@
 import type { Config } from '../config'
+import type { Proposal } from './actions'
 import type { Registry, Toolbox } from './tools'
 
 export type FindingInput = {
@@ -17,6 +18,11 @@ export type AgentContext<R extends Registry> = {
   config: Readonly<Config>
   tools: Toolbox<R>
   finding(finding: FindingInput): Promise<void>
+  /**
+   * Propone un cambio en la PC. NO se ejecuta: queda esperando tu aprobación.
+   * Devuelve el id de la acción, o null si ya estaba propuesta o la rechazaste hace poco.
+   */
+  propose(proposal: Proposal & { tool: keyof R & string }): Promise<number | null>
   memory: {
     get<T>(key: string): Promise<T | undefined>
     set(key: string, value: unknown): Promise<void>

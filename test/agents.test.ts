@@ -61,6 +61,13 @@ function fakeTools(state: {
     ]),
     'paquetes.apt': fake('paquetes.apt', async () => []),
     'paquetes.winget': fake('paquetes.winget', async () => []),
+    'archivos.cuarentena': defineTool({
+      name: 'archivos.cuarentena',
+      risk: 'write',
+      description: 'cuarentena falsa',
+      input: z.object({ paths: z.array(z.string()) }),
+      run: async () => ({ items: [], freedBytes: 0 }),
+    }),
   } as unknown as Tools & Registry
 }
 
@@ -104,6 +111,12 @@ describe('agentes', () => {
       /1 nuevo desde la última revisión \(4 GB\)/,
     )
     expect(report.reclaimableBytes).toBe(30 * GB)
+
+    // Propone mover el zip viejo, pero no lo que abriste ayer; y no lo repite en la segunda revisión
+    const proposals = await kernel.actions.list(['pending'])
+    expect(proposals.map((a) => [a.title, a.input])).toEqual([
+      ['Mover a cuarentena «juego.zip»', { paths: ['C:\\Users\\x\\Downloads\\juego.zip'] }],
+    ])
   })
 
   it('Limpiador separa lo regenerable, ignora lo pequeño y solo informa Docker', async () => {
@@ -120,6 +133,8 @@ describe('agentes', () => {
       ['suggestion', '5 GB en cachés y temporales que se regeneran solos'],
       ['info', 'Docker: 30 GB'],
     ])
+    // Solo la caché grande regenerable; Docker no se toca
+    expect((await kernel.actions.list(['pending'])).map((a) => a.title)).toEqual(['Apartar npm'])
   })
 
   it('Jardinero alerta de trabajo sin respaldar y sugiere limpiar proyectos inactivos', async () => {
@@ -139,6 +154,9 @@ describe('agentes', () => {
     expect(report.items.find((i) => i.level === 'suggestion')?.detail).toMatch(
       /^viejo \(90 días sin commits, 2 GB\)$/,
     )
+    expect((await kernel.actions.list(['pending'])).map((a) => a.input)).toEqual([
+      { paths: ['/p/viejo/node_modules'] },
+    ])
 
     // El parte en texto: lo urgente primero, sin repetir el tamaño
     const text = renderReport(report, 'Andrés', new Date('2026-09-29T08:00:00'))

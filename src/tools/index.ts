@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { defineTool } from '../kernel/tools'
 import { parseAptUpgradable, parseWingetUpgrade } from './parsers'
 import { powershell, run, toWslPath } from './shell'
+import { quarantineTool } from './quarantine'
 import { PS_PRIVACY, windowsInfo } from './windows'
 
 const HOME = homedir()
@@ -197,6 +198,8 @@ export const tools = {
       return parseWingetUpgrade(out)
     },
   }),
+
+  'archivos.cuarentena': quarantineTool,
 }
 
 export type Tools = typeof tools

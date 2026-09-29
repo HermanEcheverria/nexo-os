@@ -18,6 +18,8 @@ export type Report = {
   agents: { name: string; title: string; checkedAt: string | null; state: string | null }[]
   items: ReportItem[]
   reclaimableBytes: number
+  /** Acciones esperando tu aprobación (lo agrega el servicio). */
+  pendingActions?: number
 }
 
 /** El parte usa la última revisión exitosa de cada agente. */

@@ -7,7 +7,7 @@ export const jardinero = defineAgent<Tools>({
   name: 'jardinero',
   title: 'Jardinero',
   description: 'Cuida tus proyectos: cambios sin commit, commits sin subir, proyectos inactivos.',
-  capabilities: ['proyectos.revisar'],
+  capabilities: ['proyectos.revisar', 'archivos.cuarentena'],
   everyMinutes: 60,
   onLogin: true,
   async run(ctx) {
@@ -50,6 +50,16 @@ export const jardinero = defineAgent<Tools>({
           .join(' · '),
         bytes: total,
         data: { repos: idle.map((r) => r.path) },
+      })
+    }
+
+    for (const r of idle) {
+      await ctx.propose({
+        tool: 'archivos.cuarentena',
+        input: { paths: [`${r.path}/node_modules`] },
+        title: `Apartar las dependencias de ${r.name}`,
+        detail: `${daysSince(r.lastCommit!)} días sin commits. Se reinstalan con "pnpm install" cuando vuelvas al proyecto.`,
+        bytes: r.nodeModulesBytes,
       })
     }
 

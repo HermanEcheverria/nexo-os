@@ -11,7 +11,13 @@ import type { PrivacyGuard } from './privacy'
  */
 export type Risk = 'read' | 'write' | 'external'
 
-export type ToolEnv = { config: Config; privacy: PrivacyGuard; signal: AbortSignal }
+export type ToolEnv = {
+  config: Config
+  privacy: PrivacyGuard
+  signal: AbortSignal
+  /** Solo en acciones aprobadas: el número de la acción (p. ej. para su carpeta de cuarentena). */
+  actionId?: number
+}
 
 export type Tool<I extends z.ZodType = z.ZodType, O = unknown> = {
   name: string
@@ -19,6 +25,10 @@ export type Tool<I extends z.ZodType = z.ZodType, O = unknown> = {
   description: string
   input: I
   run(input: z.output<I>, env: ToolEnv): Promise<O>
+  /** Revierte una ejecución a partir de su resultado (p. ej. sacar de cuarentena). */
+  undo?(result: O, env: ToolEnv): Promise<unknown>
+  /** Vuelve definitivo el cambio cuando vence el plazo para deshacer (p. ej. borrar la cuarentena). */
+  purge?(result: O, env: ToolEnv): Promise<unknown>
 }
 
 export type Registry = Record<string, Tool>

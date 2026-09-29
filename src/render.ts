@@ -66,6 +66,13 @@ export function renderReport(report: Report, name = 'Andrés', now = new Date())
   section('Podrías hacer', suggestions, styleText('cyan', '◆'))
   section('Estado', info, dim('·'))
 
+  if (report.pendingActions) {
+    out.push(
+      '',
+      `${styleText('cyan', '●')} ${bold(`${report.pendingActions} ${report.pendingActions === 1 ? 'acción espera' : 'acciones esperan'} tu aprobación`)} ${dim('· nexo acciones')}`,
+    )
+  }
+
   const checks = report.agents.map((a) =>
     a.checkedAt
       ? `${a.title} ${new Date(a.checkedAt).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}`

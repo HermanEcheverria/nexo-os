@@ -7,7 +7,7 @@ export const limpiador = defineAgent<Tools>({
   name: 'limpiador',
   title: 'Limpiador',
   description: 'Mide cachés y temporales que crecen solos y se pueden regenerar.',
-  capabilities: ['sistema.caches'],
+  capabilities: ['sistema.caches', 'archivos.cuarentena'],
   everyMinutes: 24 * 60,
   onLogin: true,
   async run(ctx) {
@@ -24,6 +24,21 @@ export const limpiador = defineAgent<Tools>({
         detail: regenerable.map((c) => `${c.label}: ${bytes(c.bytes)}`).join(' · '),
         bytes: total,
         data: { caches: regenerable.map(({ id, label, bytes }) => ({ id, label, bytes })) },
+      })
+    }
+
+    // Cachés completas que se pueden apartar sin riesgo (los temporales y la papelera no)
+    const movable = regenerable.filter(
+      (c) => c.bytes >= 500 * 1024 ** 2 && !['win-temp', 'win-papelera'].includes(c.id),
+    )
+    for (const c of movable) {
+      await ctx.propose({
+        tool: 'archivos.cuarentena',
+        input: { paths: [c.path] },
+        title: `Apartar ${c.label}`,
+        detail:
+          'Se vuelve a llenar sola cuando la necesites; la primera instalación después será un poco más lenta.',
+        bytes: c.bytes,
       })
     }
 

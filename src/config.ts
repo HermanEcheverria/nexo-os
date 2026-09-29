@@ -29,6 +29,8 @@ const schema = z.object({
   staleDays: z.number().int().min(7).default(90),
   /** Días sin commits para considerar un proyecto inactivo. */
   idleProjectDays: z.number().int().min(7).default(30),
+  /** Dónde queda la cuarentena de WSL (la de Windows está en %LOCALAPPDATA%\\Nexo\\Cuarentena). */
+  quarantineDir: z.string().default(join(HOME, '.local', 'share', 'nexo', 'cuarentena')),
   /** Puerto local del servicio (solo escucha en 127.0.0.1). */
   port: z.number().int().default(4747),
 })

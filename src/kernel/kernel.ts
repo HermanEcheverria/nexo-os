@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { EventEmitter } from 'node:events'
 
 import type { Config } from '../config'
+import { ActionManager } from './actions'
 import type { Agent, AgentContext } from './agent'
 import type { Db } from './db/client'
 import { findings, journal, memory, processes } from './db/schema'
@@ -34,6 +35,9 @@ export class Kernel<R extends Registry> {
   private readonly retryTimers = new Set<NodeJS.Timeout>()
   private timer: NodeJS.Timeout | undefined
   private stopping = false
+  private lastHousekeeping = 0
+  /** Cola de aprobaciones: lo que proponen los agentes y lo que decides tú. */
+  readonly actions: ActionManager<R>
   private readonly concurrency: number
   private readonly maxAttempts: number
   private readonly retryDelayMs: number
@@ -52,6 +56,14 @@ export class Kernel<R extends Registry> {
     this.maxAttempts = options.maxAttempts ?? 3
     this.retryDelayMs = options.retryDelayMs ?? 30_000
     this.now = options.now ?? (() => new Date())
+    this.actions = new ActionManager(
+      db,
+      tools,
+      config,
+      privacy,
+      (t, d, pid, a) => this.log(t, d, pid, a),
+      this.now,
+    )
   }
 
   listAgents(): Agent<R>[] {
@@ -128,6 +140,7 @@ export class Kernel<R extends Registry> {
           .values({ ...f, pid, agent: agent.name, createdAt: this.now() })
         await this.log('finding', { level: f.level, title: f.title }, pid, agent.name)
       },
+      propose: (proposal) => this.actions.propose(pid, agent.name, agent.capabilities, proposal),
       memory: {
         get: async <T>(key: string) => {
           const [row] = await this.db
@@ -236,6 +249,11 @@ export class Kernel<R extends Registry> {
 
   /** Una vuelta del planificador: lanza a los que les toca, sin pasarse del límite. */
   async tick(): Promise<void> {
+    // Una vez por hora: se vuelve definitivo lo que pasó su plazo para deshacer
+    if (this.now().getTime() - this.lastHousekeeping >= 60 * 60_000) {
+      this.lastHousekeeping = this.now().getTime()
+      await this.actions.purgeExpired()
+    }
     const free = this.concurrency - this.running.size
     const due = (await this.due()).slice(0, Math.max(0, free))
     await Promise.all(due.map(async (a) => this.execute(await this.spawn(a.name, 'schedule'))))

@@ -6,7 +6,9 @@ import { serve } from '@hono/node-server'
 import { boot } from './boot'
 import { loadConfig, PATHS } from './config'
 import { journal, processes } from './kernel/db/schema'
+import type { Action } from './kernel/actions'
 import { buildReport, type Report } from './kernel/report'
+import { bytes } from './format'
 import { renderReport } from './render'
 import { createServer } from './server'
 import { loadOrCreateToken, mirrorToken, windowsTokenPath } from './security'
@@ -78,12 +80,13 @@ async function main() {
       } else {
         report = await direct(async ({ kernel, database }) => {
           const first = await buildReport(database.db, kernel.listAgents())
+          let report = first
           if (values.actualizar || first.items.length === 0) {
             process.stderr.write(dim('Los agentes están revisando tu PC…\n'))
             await kernel.login()
-            return buildReport(database.db, kernel.listAgents())
+            report = await buildReport(database.db, kernel.listAgents())
           }
-          return first
+          return { ...report, pendingActions: await kernel.actions.pendingCount() }
         })
       }
       console.log(renderReport(report))
@@ -209,6 +212,52 @@ async function main() {
       break
     }
 
+    case 'acciones': {
+      const rows: Action[] = online
+        ? await api<Action[]>('/acciones?estado=pendientes')
+        : await direct(({ kernel }) => kernel.actions.list(['pending']))
+      const undoable: Action[] = online
+        ? await api<Action[]>('/acciones?estado=deshacibles')
+        : await direct(({ kernel }) => kernel.actions.undoable())
+      if (!rows.length) console.log(dim('\n  No hay acciones esperando tu aprobación.'))
+      else console.log(styleText('bold', `\nEsperan tu aprobación (${rows.length})`))
+      for (const a of rows) {
+        const size = a.bytes ? styleText('cyan', ` [${bytes(a.bytes)}]`) : ''
+        console.log(`  ${styleText('bold', `#${a.id}`)} ${a.title}${size} ${dim(`· ${a.agent}`)}`)
+        if (a.detail) console.log(dim(`       ${a.detail}`))
+      }
+      if (undoable.length) {
+        console.log(styleText('bold', '\nSe pueden deshacer'))
+        for (const a of undoable) {
+          const until = new Date(new Date(a.executedAt!).getTime() + 30 * 86_400_000)
+          console.log(
+            `  #${a.id} ${a.title} ${dim(`· hasta el ${until.toLocaleDateString('es-GT')}`)}`,
+          )
+        }
+      }
+      console.log(dim('\n  nexo aprobar <id> · nexo rechazar <id> · nexo deshacer <id>\n'))
+      break
+    }
+
+    case 'aprobar':
+    case 'rechazar':
+    case 'deshacer': {
+      const id = Number(rest[0])
+      if (!Number.isInteger(id) || id <= 0) throw new Error(`Uso: nexo ${command} <id>`)
+      const verb = { aprobar: 'approve', rechazar: 'reject', deshacer: 'undo' } as const
+      const result: Action = online
+        ? await api<Action>(`/acciones/${id}/${command}`, 'POST')
+        : await direct(({ kernel }) => kernel.actions[verb[command]](id))
+      const messages: Partial<Record<Action['state'], string>> = {
+        done: 'Hecho. Si te arrepientes: nexo deshacer ' + id,
+        failed: `No se pudo: ${result.error}`,
+        rejected: 'Rechazada. No te lo volveré a proponer en 30 días.',
+        undone: 'Deshecho: todo volvió a su lugar.',
+      }
+      console.log(messages[result.state] ?? `Estado: ${result.state}`)
+      break
+    }
+
     case 'token': {
       // Rotar invalida el token anterior; el servicio lo toma al reiniciarse
       loadOrCreateToken(PATHS.token, Boolean(values.rotar))
@@ -228,6 +277,8 @@ ${styleText('bold', 'Nexo')} — sistema operativo de agentes para tu PC
   nexo agentes                Agentes, sus permisos y las zonas privadas
   nexo ejecutar <agente>      Lanzar un agente ahora
   nexo servicio               Encender el servicio (planificador + API local)
+  nexo acciones               Lo que tus agentes proponen cambiar (y lo que se puede deshacer)
+  nexo aprobar|rechazar <id>  Decidir una acción · nexo deshacer <id> para revertirla
   nexo token [--rotar]        Dónde está el token de la API (o generar uno nuevo)
 `)
   }

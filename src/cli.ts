@@ -9,6 +9,7 @@ import { journal, processes } from './kernel/db/schema'
 import { buildReport, type Report } from './kernel/report'
 import { renderReport } from './render'
 import { createServer } from './server'
+import { loadOrCreateToken, mirrorToken, windowsTokenPath } from './security'
 import { tools } from './tools'
 import { agents } from './agents'
 
@@ -17,6 +18,7 @@ const { positionals, values } = parseArgs({
   options: {
     actualizar: { type: 'boolean', short: 'a' },
     'iniciar-sesion': { type: 'boolean' },
+    rotar: { type: 'boolean' },
     n: { type: 'string' },
   },
 })
@@ -35,7 +37,11 @@ async function service(): Promise<boolean> {
 }
 
 async function api<T>(path: string, method = 'GET'): Promise<T> {
-  const res = await fetch(`${base}${path}`, { method })
+  const token = loadOrCreateToken(PATHS.token)
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) throw new Error(`${path}: ${res.status} ${await res.text()}`)
   return (await res.json()) as T
 }
@@ -171,11 +177,14 @@ async function main() {
         console.log('El servicio ya está corriendo.')
         break
       }
-      const { kernel, database } = await boot(config)
+      const { kernel, database, windows } = await boot(config)
+      const token = loadOrCreateToken(PATHS.token)
+      // La app de escritorio corre en Windows y lee su copia del token en %LOCALAPPDATA%\Nexo
+      if (windows) mirrorToken(token, windowsTokenPath(windows.userProfile))
       const recovered = await kernel.recover()
       if (recovered.length) console.log(`Retomé ${recovered.length} procesos interrumpidos.`)
       const server = serve({
-        fetch: createServer(database.db, kernel).fetch,
+        fetch: createServer(database.db, kernel, { token, port: config.port }).fetch,
         hostname: '127.0.0.1',
         port: config.port,
       })
@@ -194,6 +203,15 @@ async function main() {
       break
     }
 
+    case 'token': {
+      // Rotar invalida el token anterior; el servicio lo toma al reiniciarse
+      loadOrCreateToken(PATHS.token, Boolean(values.rotar))
+      console.log(
+        values.rotar ? 'Token nuevo generado. Reinicia el servicio.' : `Token en ${PATHS.token}`,
+      )
+      break
+    }
+
     default:
       console.log(`
 ${styleText('bold', 'Nexo')} — sistema operativo de agentes para tu PC
@@ -204,6 +222,7 @@ ${styleText('bold', 'Nexo')} — sistema operativo de agentes para tu PC
   nexo agentes                Agentes, sus permisos y las zonas privadas
   nexo ejecutar <agente>      Lanzar un agente ahora
   nexo servicio               Encender el servicio (planificador + API local)
+  nexo token [--rotar]        Dónde está el token de la API (o generar uno nuevo)
 `)
   }
 }

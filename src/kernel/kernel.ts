@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { EventEmitter } from 'node:events'
 
 import type { Config } from '../config'
 import type { Agent, AgentContext } from './agent'
@@ -23,7 +24,11 @@ export type KernelOptions = {
  * El núcleo de Nexo. Guarda todo en la base (procesos, bitácora, hallazgos, memoria),
  * así que si la PC se apaga a medio trabajo, al volver sabe qué quedó pendiente.
  */
+export type JournalEvent = typeof journal.$inferSelect
+
 export class Kernel<R extends Registry> {
+  /** Cada entrada de la bitácora se emite aquí: la app la recibe en vivo por SSE. */
+  readonly events = new EventEmitter<{ event: [JournalEvent] }>()
   private readonly agents: Map<string, Agent<R>>
   private readonly running = new Map<number, AbortController>()
   private readonly retryTimers = new Set<NodeJS.Timeout>()
@@ -54,7 +59,11 @@ export class Kernel<R extends Registry> {
   }
 
   async log(type: string, data: Record<string, unknown> = {}, pid?: number, agent?: string) {
-    await this.db.insert(journal).values({ type, data, pid, agent, at: this.now() })
+    const [row] = await this.db
+      .insert(journal)
+      .values({ type, data, pid, agent, at: this.now() })
+      .returning()
+    this.events.emit('event', row!)
   }
 
   /**

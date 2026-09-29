@@ -44,8 +44,9 @@ en base64), así que una ruta con caracteres raros no puede convertirse en un co
 
 ## Uso
 
-Requisitos: WSL con Node 22+ y pnpm. No necesita Docker: la base es PGlite (PostgreSQL en
-WebAssembly) guardada en `~/.local/share/nexo`.
+Requisitos: WSL con Node 22+ y pnpm. No necesita Docker: la base es SQLite en modo WAL
+(`~/.local/share/nexo/nexo.db`), que resiste apagados bruscos. Si alguna vez se dañara, Nexo la
+aparta con su fecha y arranca con una nueva.
 
 ```bash
 pnpm install

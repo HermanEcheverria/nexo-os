@@ -181,6 +181,12 @@ async function main() {
       const token = loadOrCreateToken(PATHS.token)
       // La app de escritorio corre en Windows y lee su copia del token en %LOCALAPPDATA%\Nexo
       if (windows) mirrorToken(token, windowsTokenPath(windows.userProfile))
+      if (database.recoveredFrom) {
+        console.warn(
+          `La base estaba dañada: la aparté en ${database.recoveredFrom} y empecé una nueva.`,
+        )
+        await kernel.log('db_recovered', { movedTo: database.recoveredFrom })
+      }
       const recovered = await kernel.recover()
       if (recovered.length) console.log(`Retomé ${recovered.length} procesos interrumpidos.`)
       const server = serve({

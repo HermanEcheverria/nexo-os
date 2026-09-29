@@ -8,7 +8,7 @@ const expand = (p: string) => (p.startsWith('~/') ? join(HOME, p.slice(2)) : p)
 
 export const PATHS = {
   config: join(HOME, '.config', 'nexo', 'config.json'),
-  data: join(HOME, '.local', 'share', 'nexo', 'db'),
+  data: join(HOME, '.local', 'share', 'nexo', 'nexo.db'),
   token: join(HOME, '.local', 'share', 'nexo', 'token'),
 }
 

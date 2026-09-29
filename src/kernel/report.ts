@@ -23,6 +23,8 @@ export type Report = {
   /** Resumen redactado por el modelo local (lo agrega el servicio). */
   summary?: { text: string; at: string } | null
   assistant?: boolean
+  /** Nombre para el saludo (lo agrega el servicio). */
+  userName?: string
 }
 
 /** El parte usa la última revisión exitosa de cada agente. */

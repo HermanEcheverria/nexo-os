@@ -26,7 +26,7 @@ function greeting(date: Date): string {
 }
 
 /** El parte del día en la terminal: primero lo urgente, luego lo que conviene, luego el estado. */
-export function renderReport(report: Report, name = 'Andrés', now = new Date()): string {
+export function renderReport(report: Report, name: string, now = new Date()): string {
   const width = Math.min(process.stdout.columns || 90, 100) - 6
   const date = now.toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' })
   const out: string[] = []

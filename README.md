@@ -50,6 +50,7 @@ aparta con su fecha y arranca con una nueva.
 
 ```bash
 pnpm install
+ln -s "$PWD/bin/nexo" ~/.local/bin/nexo   # el comando nexo (la app de Windows lo usa para encender el núcleo)
 bin/nexo parte --actualizar   # los agentes revisan la PC y muestran el parte
 bin/nexo servicio             # modo servicio: planificador + API local en 127.0.0.1:4747
 bin/nexo acciones             # lo que proponen tus agentes
@@ -59,7 +60,12 @@ pnpm test                     # núcleo, privacidad, agentes y lectores con dato
 npx tsx test/eval/asistente.eval.ts qwen3.5:4b   # evaluación del modelo real (8 casos)
 ```
 
-La configuración está en `~/.config/nexo/config.json` (se crea la primera vez).
+La configuración está en `~/.config/nexo/config.json` (se crea la primera vez): tu nombre para el
+saludo (`name`), las carpetas de proyectos, las zonas privadas, los umbrales de los agentes y el
+modelo local (`llm`).
+
+La app de escritorio para Windows vive en su propio repositorio (`nexo-desktop`): es un cliente
+delgado de este núcleo.
 
 ## Hoja de ruta
 

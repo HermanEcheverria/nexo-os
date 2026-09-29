@@ -58,6 +58,8 @@ describe('seguridad de la API local', () => {
   })
 
   it('traduce la ruta del token de Windows a WSL', () => {
-    expect(windowsTokenPath('C:\\Users\\andre')).toBe('/mnt/c/Users/andre/AppData/Local/Nexo/token')
+    expect(windowsTokenPath('C:\\Users\\usuario')).toBe(
+      '/mnt/c/Users/usuario/AppData/Local/Nexo/token',
+    )
   })
 })

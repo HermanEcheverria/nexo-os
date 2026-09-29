@@ -20,7 +20,12 @@ import { APP_ORIGINS, hostGuard, tokenGuard } from './security'
 export function createServer<R extends Registry>(
   db: Db,
   kernel: Kernel<R>,
-  { token, port, assistant }: { token: string; port: number; assistant?: Assistant },
+  {
+    token,
+    port,
+    assistant,
+    name = 'amigo',
+  }: { token: string; port: number; assistant?: Assistant; name?: string },
 ) {
   const app = new Hono()
 
@@ -98,6 +103,7 @@ export function createServer<R extends Registry>(
         at: string
       } | null,
       assistant: Boolean(assistant),
+      userName: name,
     }),
   )
   app.get('/ps', async (c) =>

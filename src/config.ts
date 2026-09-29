@@ -12,7 +12,12 @@ export const PATHS = {
   token: join(HOME, '.local', 'share', 'nexo', 'token'),
 }
 
+/** Nombre para el saludo: el usuario del sistema, con mayúscula ("andres" → "Andres"). */
+const systemName = (process.env.USER ?? 'amigo').replace(/^./, (c) => c.toUpperCase())
+
 const schema = z.object({
+  /** Cómo te llama Nexo en el parte y en sus respuestas. */
+  name: z.string().min(1).default(systemName),
   /** Carpetas donde buscar proyectos con git (en WSL). */
   projectRoots: z.array(z.string()).default(['~/Trabajo']),
   /**

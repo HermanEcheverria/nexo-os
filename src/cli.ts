@@ -91,7 +91,7 @@ async function main() {
           return { ...report, pendingActions: await kernel.actions.pendingCount() }
         })
       }
-      console.log(renderReport(report))
+      console.log(renderReport(report, config.name))
       break
     }
 
@@ -198,7 +198,10 @@ async function main() {
         fetch: createServer(database.db, kernel, {
           token,
           port: config.port,
-          assistant: config.llm.enabled ? new Assistant(ollamaModel(config.llm)) : undefined,
+          assistant: config.llm.enabled
+            ? new Assistant(ollamaModel(config.llm), config.name)
+            : undefined,
+          name: config.name,
         }).fetch,
         hostname: '127.0.0.1',
         port: config.port,

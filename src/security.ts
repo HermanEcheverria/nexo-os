@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path'
 
 import type { MiddlewareHandler } from 'hono'
 
+import { toWslPath } from './tools/shell'
+
 /**
  * Token secreto entre el servicio y sus clientes (el comando nexo y la app de escritorio).
  * Una API en localhost sin token la puede llamar cualquier página web que visites
@@ -20,9 +22,7 @@ export function loadOrCreateToken(path: string, rotate = false): string {
 
 /** Copia del token para la app de Windows: %LOCALAPPDATA%\Nexo\token (dentro de tu perfil). */
 export function windowsTokenPath(userProfile: string): string {
-  const drive = userProfile[0]!.toLowerCase()
-  const rest = userProfile.slice(2).replace(/\\/g, '/')
-  return join(`/mnt/${drive}${rest}`, 'AppData', 'Local', 'Nexo', 'token')
+  return join(toWslPath(userProfile), 'AppData', 'Local', 'Nexo', 'token')
 }
 
 export function mirrorToken(token: string, path: string) {

@@ -1,7 +1,21 @@
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { promisify } from 'node:util'
 
 const exec = promisify(execFile)
+
+/** C:\\Users\\x\\AppData → /mnt/c/Users/x/AppData */
+export function toWslPath(windowsPath: string): string {
+  const drive = windowsPath[0]!.toLowerCase()
+  return `/mnt/${drive}${windowsPath.slice(2).replace(/\\/g, '/')}`
+}
+
+/**
+ * Ruta absoluta de PowerShell. Cuando la app enciende el núcleo desde Windows, WSL no
+ * siempre agrega las rutas de Windows al PATH: no se puede depender de él.
+ */
+const SYSTEM_POWERSHELL = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'
+export const POWERSHELL = existsSync(SYSTEM_POWERSHELL) ? SYSTEM_POWERSHELL : 'powershell.exe'
 
 /**
  * Ejecuta un programa SIN pasar por una shell: los argumentos nunca se interpretan,
@@ -24,7 +38,7 @@ export async function run(
 /** ¿Estamos en WSL con acceso a Windows? */
 export async function hasWindows(): Promise<boolean> {
   try {
-    await run('powershell.exe', ['-NoProfile', '-Command', 'exit 0'], { timeoutMs: 15_000 })
+    await run(POWERSHELL, ['-NoProfile', '-Command', 'exit 0'], { timeoutMs: 15_000 })
     return true
   } catch {
     return false
@@ -51,7 +65,7 @@ export async function powershell<T>(
   // -EncodedCommand evita problemas de comillas: PowerShell recibe el script tal cual
   const encoded = Buffer.from(full, 'utf16le').toString('base64')
   const out = await run(
-    'powershell.exe',
+    POWERSHELL,
     ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
     { timeoutMs },
   )

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -5,7 +6,7 @@ import { z } from 'zod'
 
 import { defineTool } from '../kernel/tools'
 import { parseAptUpgradable, parseWingetUpgrade } from './parsers'
-import { powershell, run } from './shell'
+import { powershell, run, toWslPath } from './shell'
 import { PS_PRIVACY, windowsInfo } from './windows'
 
 const HOME = homedir()
@@ -184,14 +185,17 @@ export const tools = {
     risk: 'read',
     description: 'Actualizaciones pendientes de programas de Windows (winget).',
     input: z.object({}),
-    run: async () =>
-      parseWingetUpgrade(
-        await run(
-          'winget.exe',
-          ['upgrade', '--include-unknown', '--disable-interactivity', '--accept-source-agreements'],
-          { timeoutMs: 120_000 },
-        ),
-      ),
+    async run() {
+      // winget vive en WindowsApps del usuario; se llama por ruta absoluta (ver POWERSHELL)
+      const { localAppData } = await windowsInfo()
+      const winget = toWslPath(`${localAppData}\\Microsoft\\WindowsApps\\winget.exe`)
+      const out = await run(
+        existsSync(winget) ? winget : 'winget.exe',
+        ['upgrade', '--include-unknown', '--disable-interactivity', '--accept-source-agreements'],
+        { timeoutMs: 120_000 },
+      )
+      return parseWingetUpgrade(out)
+    },
   }),
 }
 

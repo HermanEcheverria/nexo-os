@@ -2,6 +2,7 @@ import { powershell } from './shell'
 
 export type WindowsInfo = {
   userProfile: string
+  localAppData: string
   oneDrive: string | null
   downloads: string
   drives: { name: string; usedBytes: number; freeBytes: number }[]
@@ -15,6 +16,7 @@ export function windowsInfo(): Promise<WindowsInfo> {
     $downloads = (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path
     [pscustomobject]@{
       userProfile = $env:USERPROFILE
+      localAppData = $env:LOCALAPPDATA
       oneDrive = $env:OneDrive
       downloads = $downloads
       drives = @(Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -ne $null } | ForEach-Object {

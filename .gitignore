@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.data/
+.env
+*.log
+
+# Herramientas locales
+.claude/
+CLAUDE.md
+.vscode/

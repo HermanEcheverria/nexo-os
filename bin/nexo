@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Lanzador de Nexo: funciona desde cualquier carpeta (sigue enlaces simbólicos)
+DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+exec "$DIR/node_modules/.bin/tsx" "$DIR/src/cli.ts" "$@"

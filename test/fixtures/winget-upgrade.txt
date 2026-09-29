@@ -1,0 +1,14 @@
+Name                                                         Id                                  Version         Available      Source
+--------------------------------------------------------------------------------------------------------------------------------------
+Docker Desktop                                               Docker.DockerDesktop                4.74.0          4.93.0         winget
+Git                                                          Git.Git                             2.42.0.2        2.55.0.5       winget
+Python 3.13.3 (64-bit)                                       Python.Python.3.13                  3.13.3          3.13.15        winget
+Node.js LTS                                                  OpenJS.NodeJS.LTS                   22.12.0         22.20.0        winget
+Microsoft Visual Studio Code                                 Microsoft.VisualStudioCode          1.98.0          1.104.2        winget
+7-Zip 24.08 (x64)                                            7zip.7zip                           24.08           25.01          winget
+VLC media player                                             VideoLAN.VLC                        3.0.20          3.0.21         winget
+Mozilla Firefox (x64 es-MX)                                  Mozilla.Firefox.es-MX               140.0           143.0.1        winget
+Aplicación de ejemplo con versión desconocida                Ejemplo.AppDesconocida              < 5.2.0         5.2.0          winget
+PostgreSQL 17                                                PostgreSQL.PostgreSQL.17            17.9-2          17.11-4        winget
+Windows Subsystem for Linux                                  Microsoft.WSL                       2.7.3.0         2.7.13         winget
+11 upgrades available.

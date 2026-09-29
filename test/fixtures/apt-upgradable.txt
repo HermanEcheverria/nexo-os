@@ -1,0 +1,12 @@
+Listing...
+libaudit-common/resolute-updates 1:4.1.2-1ubuntu0.1 all [upgradable from: 1:4.1.2-1build1]
+libaudit1/resolute-updates 1:4.1.2-1ubuntu0.1 amd64 [upgradable from: 1:4.1.2-1build1]
+libnetplan1/resolute-updates 1.2-1ubuntu5.1 amd64 [upgradable from: 1.2-1ubuntu5]
+netplan-generator/resolute-updates 1.2-1ubuntu5.1 amd64 [upgradable from: 1.2-1ubuntu5]
+netplan.io/resolute-updates 1.2-1ubuntu5.1 amd64 [upgradable from: 1.2-1ubuntu5]
+python3-distupgrade/resolute-updates 1:26.04.25 all [upgradable from: 1:26.04.23]
+python3-netplan/resolute-updates 1.2-1ubuntu5.1 amd64 [upgradable from: 1.2-1ubuntu5]
+rust-coreutils/resolute-updates 0.10.0-1ubuntu2~26.04.1 amd64 [upgradable from: 0.8.0-0ubuntu3]
+ubuntu-minimal/resolute-updates 1.570.4 amd64 [upgradable from: 1.570.3]
+ubuntu-release-upgrader-core/resolute-updates 1:26.04.25 all [upgradable from: 1:26.04.23]
+ubuntu-wsl/resolute-updates 1.570.4 amd64 [upgradable from: 1.570.3]

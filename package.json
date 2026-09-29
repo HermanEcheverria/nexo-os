@@ -1,0 +1,36 @@
+{
+  "name": "nexo-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nexo: un sistema operativo de agentes que cuida tu computadora.",
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "bin": {
+    "nexo": "./bin/nexo"
+  },
+  "scripts": {
+    "nexo": "tsx src/cli.ts",
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@hono/node-server": "^2.1.1",
+    "drizzle-orm": "^0.45.3",
+    "hono": "^4.13.10",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "drizzle-kit": "^0.31.11",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2"
+  }
+}

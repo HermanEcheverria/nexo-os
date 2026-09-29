@@ -11,6 +11,8 @@ import { buildReport, type Report } from './kernel/report'
 import { bytes } from './format'
 import { renderReport } from './render'
 import { createServer } from './server'
+import { Assistant } from './llm/assistant'
+import { ollamaModel } from './llm/ollama'
 import { loadOrCreateToken, mirrorToken, windowsTokenPath } from './security'
 import { tools } from './tools'
 import { agents } from './agents'
@@ -193,7 +195,11 @@ async function main() {
       const recovered = await kernel.recover()
       if (recovered.length) console.log(`Retomé ${recovered.length} procesos interrumpidos.`)
       const server = serve({
-        fetch: createServer(database.db, kernel, { token, port: config.port }).fetch,
+        fetch: createServer(database.db, kernel, {
+          token,
+          port: config.port,
+          assistant: config.llm.enabled ? new Assistant(ollamaModel(config.llm)) : undefined,
+        }).fetch,
         hostname: '127.0.0.1',
         port: config.port,
       })
@@ -258,6 +264,31 @@ async function main() {
       break
     }
 
+    case 'preguntar': {
+      const texto = rest.join(' ').trim()
+      if (!texto) throw new Error('Uso: nexo preguntar "¿qué ocupa tanto en Descargas?"')
+      if (!online) throw new Error('El servicio no está corriendo. Enciéndelo con: nexo servicio')
+      const token = loadOrCreateToken(PATHS.token)
+      const res = await fetch(`${base}/preguntar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto }),
+      })
+      const answer = (await res.json()) as {
+        respuesta?: string
+        intencion?: string
+        pid?: number | null
+        error?: string
+      }
+      if (!res.ok) throw new Error(answer.error ?? `Error ${res.status}`)
+      console.log(`\n${answer.respuesta}`)
+      if (answer.pid) console.log(dim(`  (lancé una revisión: nexo logs ${answer.pid})`))
+      if (answer.intencion === 'ver_aprobaciones')
+        console.log(dim('  Revisa las propuestas con: nexo acciones'))
+      console.log('')
+      break
+    }
+
     case 'token': {
       // Rotar invalida el token anterior; el servicio lo toma al reiniciarse
       loadOrCreateToken(PATHS.token, Boolean(values.rotar))
@@ -279,6 +310,7 @@ ${styleText('bold', 'Nexo')} — sistema operativo de agentes para tu PC
   nexo servicio               Encender el servicio (planificador + API local)
   nexo acciones               Lo que tus agentes proponen cambiar (y lo que se puede deshacer)
   nexo aprobar|rechazar <id>  Decidir una acción · nexo deshacer <id> para revertirla
+  nexo preguntar "…"          Pregúntale en español al modelo local (nada sale de tu PC)
   nexo token [--rotar]        Dónde está el token de la API (o generar uno nuevo)
 `)
   }

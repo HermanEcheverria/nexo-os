@@ -20,6 +20,9 @@ export type Report = {
   reclaimableBytes: number
   /** Acciones esperando tu aprobación (lo agrega el servicio). */
   pendingActions?: number
+  /** Resumen redactado por el modelo local (lo agrega el servicio). */
+  summary?: { text: string; at: string } | null
+  assistant?: boolean
 }
 
 /** El parte usa la última revisión exitosa de cada agente. */

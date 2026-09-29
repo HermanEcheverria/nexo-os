@@ -1,10 +1,13 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { streamSSE } from 'hono/streaming'
 
 import type { Db } from './kernel/db/client'
-import { journal, processes } from './kernel/db/schema'
+import { z } from 'zod'
+
+import { journal, memory, processes } from './kernel/db/schema'
+import type { Assistant, AssistantContext } from './llm/assistant'
 import type { Kernel } from './kernel/kernel'
 import { buildReport } from './kernel/report'
 import type { Registry } from './kernel/tools'
@@ -17,9 +20,37 @@ import { APP_ORIGINS, hostGuard, tokenGuard } from './security'
 export function createServer<R extends Registry>(
   db: Db,
   kernel: Kernel<R>,
-  { token, port }: { token: string; port: number },
+  { token, port, assistant }: { token: string; port: number; assistant?: Assistant },
 ) {
   const app = new Hono()
+
+  const summaryKey = and(eq(memory.agent, 'nexo'), eq(memory.key, 'resumen'))
+  async function assistantContext(): Promise<AssistantContext> {
+    return {
+      report: await buildReport(db, kernel.listAgents()),
+      pending: await kernel.actions.list(['pending']),
+      agents: kernel.listAgents(),
+      now: new Date(),
+    }
+  }
+  /** El resumen redactado por el modelo local; si no está disponible, el parte sigue igual. */
+  async function refreshSummary() {
+    if (!assistant) return
+    try {
+      const { text, source } = await assistant.summarize(await assistantContext())
+      const value = { text, source, at: new Date().toISOString() }
+      await db
+        .insert(memory)
+        .values({ agent: 'nexo', key: 'resumen', value })
+        .onConflictDoUpdate({
+          target: [memory.agent, memory.key],
+          set: { value, updatedAt: new Date() },
+        })
+      await kernel.log('summary', { chars: text.length, source })
+    } catch (error) {
+      await kernel.log('summary_failed', { error: String(error) })
+    }
+  }
 
   // Orden: primero el Host, luego CORS (solo la app), luego el token
   app.use('*', hostGuard(port))
@@ -62,6 +93,11 @@ export function createServer<R extends Registry>(
     c.json({
       ...(await buildReport(db, kernel.listAgents())),
       pendingActions: await kernel.actions.pendingCount(),
+      summary: ((await db.select().from(memory).where(summaryKey))[0]?.value ?? null) as {
+        text: string
+        at: string
+      } | null,
+      assistant: Boolean(assistant),
     }),
   )
   app.get('/ps', async (c) =>
@@ -91,7 +127,31 @@ export function createServer<R extends Registry>(
   })
   app.post('/iniciar-sesion', async (c) => {
     await kernel.login()
+    await refreshSummary()
     return c.json({ ok: true })
+  })
+
+  // Preguntas en español al modelo local. Solo puede responder, lanzar un agente
+  // (que solo lee) o llevarte a Aprobaciones: nunca cambia la PC por su cuenta.
+  app.post('/preguntar', async (c) => {
+    if (!assistant)
+      return c.json({ error: 'El modelo local está desactivado en la configuración' }, 503)
+    const body = z
+      .object({ texto: z.string().trim().min(2).max(500) })
+      .safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json({ error: 'Escribe una pregunta (hasta 500 caracteres)' }, 400)
+    await kernel.log('question', { texto: body.data.texto })
+    try {
+      const answer = await assistant.ask(body.data.texto, await assistantContext())
+      await kernel.log('answer', { intencion: answer.intencion, agente: answer.agente })
+      let pid: number | null = null
+      if (answer.intencion === 'ejecutar_agente' && answer.agente)
+        pid = await kernel.runNow(answer.agente)
+      return c.json({ ...answer, pid })
+    } catch (error) {
+      await kernel.log('answer_failed', { error: String(error) })
+      return c.json({ error: 'El modelo local no respondió. ¿Está abierto Ollama?' }, 502)
+    }
   })
   // Cola de aprobaciones
   app.get('/acciones', async (c) => {

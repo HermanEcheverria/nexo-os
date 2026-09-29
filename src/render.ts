@@ -48,6 +48,7 @@ export function renderReport(report: Report, name = 'Andrés', now = new Date())
     report.reclaimableBytes ? `podrías liberar ${bytes(report.reclaimableBytes)}` : null,
   ].filter(Boolean)
   out.push(dim(`  ${summary.join(' · ')}`))
+  if (report.summary?.text) out.push('', wrap(report.summary.text, width, '  '))
 
   const section = (title: string, items: typeof report.items, mark: string) => {
     if (!items.length) return

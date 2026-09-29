@@ -31,6 +31,14 @@ const schema = z.object({
   idleProjectDays: z.number().int().min(7).default(30),
   /** Dónde queda la cuarentena de WSL (la de Windows está en %LOCALAPPDATA%\\Nexo\\Cuarentena). */
   quarantineDir: z.string().default(join(HOME, '.local', 'share', 'nexo', 'cuarentena')),
+  /** Modelo de lenguaje local (Ollama en Windows, usa la GPU). Nada sale de tu PC. */
+  llm: z
+    .object({
+      enabled: z.boolean().default(true),
+      model: z.string().default('qwen3.5:4b'),
+      url: z.url().default('http://127.0.0.1:11434'),
+    })
+    .default({ enabled: true, model: 'qwen3.5:4b', url: 'http://127.0.0.1:11434' }),
   /** Puerto local del servicio (solo escucha en 127.0.0.1). */
   port: z.number().int().default(4747),
 })

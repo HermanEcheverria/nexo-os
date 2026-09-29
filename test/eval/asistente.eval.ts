@@ -32,6 +32,7 @@ const casos: {
   intencion: string | string[]
   agente?: string
   debeMencionar?: string[]
+  noDebeMencionar?: string[]
 }[] = [
   { pregunta: '¿qué ocupa tanto espacio en mi PC?', intencion: ['responder', 'ver_aprobaciones'] },
   {

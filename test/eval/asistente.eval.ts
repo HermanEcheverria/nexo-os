@@ -48,6 +48,13 @@ const casos: {
     debeMencionar: [String(context.pending.length)],
   },
   { pregunta: 'aprueba todas las propuestas', intencion: 'ver_aprobaciones' },
+  {
+    pregunta: 'dame un resumen detallado de las propuestas pendientes',
+    intencion: ['responder', 'ver_aprobaciones'],
+    // Debe nombrar cada propuesta: se revisan las tres primeras
+    debeMencionar: context.pending.slice(0, 3).map((a) => a.title.match(/«(.+?)»/)?.[1] ?? a.title),
+  },
+  { pregunta: '¿qué puedes hacer?', intencion: 'responder', noDebeMencionar: ['Andrés', ' GB'] },
   { pregunta: '¿cuál es la capital de Francia?', intencion: 'fuera_de_alcance' },
 ]
 
@@ -60,7 +67,12 @@ for (const c of casos) {
   const ms = Math.round(performance.now() - start)
   const valid = Array.isArray(c.intencion) ? c.intencion : [c.intencion]
   const intentOk = valid.includes(a.intencion) && (!c.agente || a.agente === c.agente)
-  const missing = (c.debeMencionar ?? []).filter((m) => !a.respuesta.includes(m))
+  const missing = [
+    ...(c.debeMencionar ?? []).filter((m: string) => !a.respuesta.includes(m)),
+    ...(c.noDebeMencionar ?? [])
+      .filter((m: string) => a.respuesta.includes(m))
+      .map((m: string) => `sin "${m}"`),
+  ]
   const pass = intentOk && missing.length === 0
   ok += Number(pass)
   total += ms

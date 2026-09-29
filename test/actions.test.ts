@@ -197,3 +197,37 @@ describe('herramienta de cuarentena (WSL)', () => {
     expect(existsSync(result.items[0]!.quarantined)).toBe(false)
   })
 })
+
+describe('revisión de seguimiento', () => {
+  it('tras aprobar varias acciones seguidas, el agente revisa una sola vez', async () => {
+    let runs = 0
+    const agent = defineAgent<Tools>({
+      name: 'proponente',
+      title: 'Proponente',
+      description: '',
+      capabilities: ['cambiar.algo'],
+      everyMinutes: 60,
+      onLogin: true,
+      async run(ctx) {
+        runs += 1
+        await ctx.propose({ tool: 'cambiar.algo', input: { n: 1 }, title: 'uno' })
+        await ctx.propose({ tool: 'cambiar.algo', input: { n: 2 }, title: 'dos' })
+      },
+    })
+    const kernel = new Kernel(
+      database.db,
+      [agent],
+      tools,
+      defaultConfig(),
+      new PrivacyGuard([], '.p'),
+      {
+        now: () => clock,
+        followUpDelayMs: 20,
+      },
+    )
+    await kernel.runNow('proponente')
+    for (const a of await kernel.actions.list(['pending'])) await kernel.actions.approve(a.id)
+    await new Promise((r) => setTimeout(r, 80))
+    expect(runs).toBe(2) // la inicial + una sola de seguimiento
+  })
+})

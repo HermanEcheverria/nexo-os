@@ -19,6 +19,8 @@ export type KernelOptions = {
   /** Espera antes de reintentar; crece con cada intento. */
   retryDelayMs?: number
   now?: () => Date
+  /** Espera antes de revisar de nuevo tras aprobar o deshacer (agrupa varias decisiones). */
+  followUpDelayMs?: number
 }
 
 /**
@@ -36,12 +38,14 @@ export class Kernel<R extends Registry> {
   private timer: NodeJS.Timeout | undefined
   private stopping = false
   private lastHousekeeping = 0
+  private readonly followups = new Map<string, NodeJS.Timeout>()
   /** Cola de aprobaciones: lo que proponen los agentes y lo que decides tú. */
   readonly actions: ActionManager<R>
   private readonly concurrency: number
   private readonly maxAttempts: number
   private readonly retryDelayMs: number
   private readonly now: () => Date
+  private readonly followUpDelayMs: number
 
   constructor(
     private readonly db: Db,
@@ -63,7 +67,9 @@ export class Kernel<R extends Registry> {
       privacy,
       (t, d, pid, a) => this.log(t, d, pid, a),
       this.now,
+      (agent) => this.followUp(agent),
     )
+    this.followUpDelayMs = options.followUpDelayMs ?? 3000
   }
 
   listAgents(): Agent<R>[] {
@@ -115,6 +121,20 @@ export class Kernel<R extends Registry> {
     const pid = await this.spawn(name, trigger)
     await this.execute(pid)
     return pid
+  }
+
+  /**
+   * Tras aprobar o deshacer, el agente que propuso vuelve a revisar para que el parte
+   * refleje la PC real. Varias decisiones seguidas se agrupan en una sola revisión.
+   */
+  private followUp(agent: string) {
+    if (this.stopping || !this.agents.has(agent)) return
+    clearTimeout(this.followups.get(agent))
+    const timer = setTimeout(async () => {
+      this.followups.delete(agent)
+      await this.execute(await this.spawn(agent, 'followup'))
+    }, this.followUpDelayMs)
+    this.followups.set(agent, timer)
   }
 
   /** Detiene un proceso en marcha. */
@@ -278,6 +298,7 @@ export class Kernel<R extends Registry> {
     this.stopping = true
     clearInterval(this.timer)
     this.retryTimers.forEach(clearTimeout)
+    this.followups.forEach(clearTimeout)
     for (const controller of this.running.values())
       controller.abort(new Error('el sistema se apagó'))
   }

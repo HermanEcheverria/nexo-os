@@ -17,8 +17,10 @@ export const processes = sqliteTable(
     state: text('state', {
       enum: ['ready', 'running', 'done', 'failed', 'interrupted', 'killed'],
     }).notNull(),
-    /** Qué lo despertó: horario, inicio de sesión, una orden tuya o un reintento. */
-    trigger: text('trigger', { enum: ['schedule', 'login', 'manual', 'retry'] }).notNull(),
+    /** Qué lo despertó: horario, inicio de sesión, una orden tuya, un reintento o una acción aprobada. */
+    trigger: text('trigger', {
+      enum: ['schedule', 'login', 'manual', 'retry', 'followup'],
+    }).notNull(),
     attempt: integer('attempt').notNull().default(1),
     createdAt: time('created_at').notNull().default(now),
     startedAt: time('started_at'),

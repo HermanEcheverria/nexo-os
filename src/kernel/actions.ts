@@ -42,6 +42,8 @@ export class ActionManager<R extends Registry> {
     private readonly privacy: PrivacyGuard,
     private readonly log: Log,
     private readonly now: () => Date,
+    /** Se llama cuando una acción cambió la PC (ejecutada o deshecha). */
+    private readonly onChanged: (agent: string) => void = () => {},
   ) {}
 
   private env(actionId: number): ToolEnv {
@@ -137,6 +139,7 @@ export class ActionManager<R extends Registry> {
         .set({ state: 'done', executedAt: this.now(), result })
         .where(eq(actions.id, id))
       await this.log('action_done', { action: id, tool: action.tool }, action.pid, action.agent)
+      this.onChanged(action.agent)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       await this.db
@@ -173,6 +176,7 @@ export class ActionManager<R extends Registry> {
       .set({ state: 'undone', decidedAt: this.now() })
       .where(eq(actions.id, id))
     await this.log('undone', { action: id, restored: restored as never }, action.pid, action.agent)
+    this.onChanged(action.agent)
     return this.get(id)
   }
 

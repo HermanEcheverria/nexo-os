@@ -7,7 +7,8 @@ import type { Db } from './kernel/db/client'
 import { z } from 'zod'
 
 import { journal, memory, processes } from './kernel/db/schema'
-import type { Assistant, AssistantContext } from './llm/assistant'
+import type { Answer, Assistant, AssistantContext } from './llm/assistant'
+import { ConversationService } from './llm/conversations'
 import type { Kernel } from './kernel/kernel'
 import { buildReport } from './kernel/report'
 import type { Registry } from './kernel/tools'
@@ -38,6 +39,19 @@ export function createServer<R extends Registry>(
       now: new Date(),
     }
   }
+  /** Lo único que hace el servidor con una respuesta: lanzar al agente pedido (que solo lee). */
+  async function act(answer: Answer): Promise<number | null> {
+    if (answer.intencion === 'ejecutar_agente' && answer.agente) return kernel.runNow(answer.agente)
+    return null
+  }
+  const chats = assistant
+    ? new ConversationService(db, assistant, {
+        context: assistantContext,
+        act,
+        log: (t, d) => kernel.log(t, d),
+      })
+    : null
+
   /** El resumen redactado por el modelo local; si no está disponible, el parte sigue igual. */
   async function refreshSummary() {
     if (!assistant) return
@@ -150,15 +164,51 @@ export function createServer<R extends Registry>(
     try {
       const answer = await assistant.ask(body.data.texto, await assistantContext())
       await kernel.log('answer', { intencion: answer.intencion, agente: answer.agente })
-      let pid: number | null = null
-      if (answer.intencion === 'ejecutar_agente' && answer.agente)
-        pid = await kernel.runNow(answer.agente)
-      return c.json({ ...answer, pid })
+      return c.json({ ...answer, pid: await act(answer) })
     } catch (error) {
       await kernel.log('answer_failed', { error: String(error) })
       return c.json({ error: 'El modelo local no respondió. ¿Está abierto Ollama?' }, 502)
     }
   })
+  // Conversaciones con el asistente (historial local, como un chat)
+  const idParam = (c: Context) => {
+    const id = Number(c.req.param('id'))
+    return Number.isInteger(id) && id > 0 ? id : null
+  }
+  app.get('/conversaciones', async (c) => c.json(chats ? await chats.list() : []))
+  app.post('/conversaciones', async (c) => {
+    if (!chats)
+      return c.json({ error: 'El modelo local está desactivado en la configuración' }, 503)
+    return c.json(await chats.create(), 201)
+  })
+  app.get('/conversaciones/:id', async (c) => {
+    const id = idParam(c)
+    const found = id && chats ? await chats.get(id) : null
+    return found ? c.json(found) : c.json({ error: 'No existe esa conversación' }, 404)
+  })
+  app.delete('/conversaciones/:id', async (c) => {
+    const id = idParam(c)
+    return id && chats && (await chats.remove(id))
+      ? c.json({ ok: true })
+      : c.json({ error: 'No existe esa conversación' }, 404)
+  })
+  app.post('/conversaciones/:id/mensajes', async (c) => {
+    const id = idParam(c)
+    if (!id || !chats) return c.json({ error: 'No existe esa conversación' }, 404)
+    const body = z
+      .object({ texto: z.string().trim().min(2).max(500) })
+      .safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json({ error: 'Escribe un mensaje (hasta 500 caracteres)' }, 400)
+    try {
+      return c.json(await chats.send(id, body.data.texto))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.startsWith('No existe')) return c.json({ error: message }, 404)
+      await kernel.log('answer_failed', { conversation: id, error: message })
+      return c.json({ error: 'El modelo local no respondió. ¿Está abierto Ollama?' }, 502)
+    }
+  })
+
   // Cola de aprobaciones
   app.get('/acciones', async (c) => {
     const filtro = c.req.query('estado')

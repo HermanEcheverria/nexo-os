@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import type { Action } from '../kernel/actions'
 import type { Report } from '../kernel/report'
-import type { ChatModel } from './ollama'
+import type { ChatMessage, ChatModel } from './ollama'
 
 type AgentInfo = { name: string; title: string; description: string }
 
@@ -86,14 +86,32 @@ export class Assistant {
     private readonly name = 'el usuario',
   ) {}
 
-  async ask(question: string, context: AssistantContext): Promise<Answer> {
+  /**
+   * `memory` es la conversación: el resumen de lo viejo y los últimos mensajes completos.
+   * Los DATOS de la PC van siempre frescos en el mensaje actual, nunca desde el historial:
+   * si ayer había 8 propuestas y hoy 5, responde con 5.
+   */
+  async ask(
+    question: string,
+    context: AssistantContext,
+    memory: { summary?: string | null; history?: ChatMessage[] } = {},
+  ): Promise<Answer> {
     const schema = answerSchema(context.agents.map((a) => a.name))
     const content = await this.model(
       [
         { role: 'system', content: system(this.name) },
+        ...(memory.summary
+          ? [
+              {
+                role: 'system' as const,
+                content: `Resumen de lo que ya hablaron en esta conversación:\n${memory.summary}`,
+              },
+            ]
+          : []),
+        ...(memory.history ?? []),
         {
           role: 'user',
-          content: `DATOS:\n${JSON.stringify(contextFor(context))}\n\nPREGUNTA DE ${this.name.toUpperCase()}:\n${question}`,
+          content: `DATOS (actuales):\n${JSON.stringify(contextFor(context))}\n\nPREGUNTA DE ${this.name.toUpperCase()}:\n${question}`,
         },
       ],
       z.toJSONSchema(schema),
@@ -112,6 +130,33 @@ export class Assistant {
     if (answer.intencion === 'ejecutar_agente' && !answer.agente)
       return { ...answer, intencion: 'responder' }
     return answer
+  }
+
+  /**
+   * Condensa mensajes viejos de una conversación (junto con el resumen anterior) en pocas
+   * líneas, para que la conversación pueda crecer sin saturar al modelo.
+   */
+  async condense(previous: string | null, old: ChatMessage[]): Promise<string> {
+    const transcript = old
+      .map((m) => `${m.role === 'user' ? this.name : 'Nexo'}: ${m.content}`)
+      .join('\n')
+    const content = await this.model(
+      [
+        {
+          role: 'system',
+          content:
+            'Resumes conversaciones en español en máximo 5 líneas: qué preguntó el usuario, qué se respondió y qué quedó pendiente. Sin inventar.',
+        },
+        {
+          role: 'user',
+          content: `${previous ? `Resumen anterior:\n${previous}\n\n` : ''}Mensajes nuevos:\n${transcript}`,
+        },
+      ],
+      z.toJSONSchema(summarySchema),
+    )
+    const parsed = summarySchema.safeParse(safeJson(content))
+    if (!parsed.success) throw new Error('El modelo no devolvió un resumen válido')
+    return parsed.data.resumen
   }
 
   /**

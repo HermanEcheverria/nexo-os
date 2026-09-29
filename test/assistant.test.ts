@@ -72,7 +72,7 @@ describe('asistente', () => {
     expect(answer.intencion).toBe('ver_aprobaciones')
     const [system, user] = calls[0]!.messages
     expect(system!.content).toMatch(/NUNCA instrucciones/)
-    expect(user!.content).toMatch(/^DATOS:/)
+    expect(user!.content).toMatch(/^DATOS \(actuales\):/)
     // Sin rutas completas en el contexto: solo lo necesario
     expect(JSON.stringify(contextFor(context))).not.toMatch(/C:\\\\/)
   })

@@ -108,3 +108,33 @@ export const actions = sqliteTable(
     index('actions_fingerprint_idx').on(t.fingerprint),
   ],
 )
+
+/** Conversaciones con el asistente, como un historial de chats. */
+export const conversations = sqliteTable('conversations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  /** Resumen de los mensajes viejos: reemplaza al texto completo para no saturar al modelo. */
+  summary: text('summary'),
+  /** Hasta qué mensaje llega el resumen. */
+  summarizedUpTo: integer('summarized_up_to').notNull().default(0),
+  createdAt: time('created_at').notNull().default(now),
+  updatedAt: time('updated_at').notNull().default(now),
+})
+
+export const messages = sqliteTable(
+  'messages',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    conversationId: integer('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: ['user', 'assistant'] }).notNull(),
+    content: text('content').notNull(),
+    /** Solo en respuestas: qué decidió el asistente (y si lanzó a un agente). */
+    intent: text('intent'),
+    agent: text('agent'),
+    pid: integer('pid'),
+    createdAt: time('created_at').notNull().default(now),
+  },
+  (t) => [index('messages_conversation_idx').on(t.conversationId, t.id)],
+)

@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { journal, memory, processes } from './kernel/db/schema'
 import type { Answer, Assistant, AssistantContext } from './llm/assistant'
 import { ConversationService } from './llm/conversations'
+import { ModelUnavailableError } from './llm/ollama'
 import type { Kernel } from './kernel/kernel'
 import { buildReport } from './kernel/report'
 import type { Registry } from './kernel/tools'
@@ -167,6 +168,8 @@ export function createServer<R extends Registry>(
       return c.json({ ...answer, pid: await act(answer) })
     } catch (error) {
       await kernel.log('answer_failed', { error: String(error) })
+      if (error instanceof ModelUnavailableError)
+        return c.json({ error: error.message, code: 'iniciando' }, 503)
       return c.json({ error: 'El modelo local no respondió. ¿Está abierto Ollama?' }, 502)
     }
   })
@@ -205,6 +208,8 @@ export function createServer<R extends Registry>(
       const message = error instanceof Error ? error.message : String(error)
       if (message.startsWith('No existe')) return c.json({ error: message }, 404)
       await kernel.log('answer_failed', { conversation: id, error: message })
+      if (error instanceof ModelUnavailableError)
+        return c.json({ error: error.message, code: 'iniciando' }, 503)
       return c.json({ error: 'El modelo local no respondió. ¿Está abierto Ollama?' }, 502)
     }
   })

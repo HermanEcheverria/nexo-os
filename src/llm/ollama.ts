@@ -40,7 +40,58 @@ function postWithWindowsCurl(url: string, body: string, timeoutMs: number): Prom
   })
 }
 
-export function ollamaModel(config: Config['llm'], timeoutMs = 120_000): ChatModel {
+export class ModelUnavailableError extends Error {
+  constructor() {
+    super('El modelo local todavía se está iniciando. Intenta de nuevo en unos segundos.')
+    this.name = 'ModelUnavailableError'
+  }
+}
+
+/** Ollama no está escuchando (p. ej. recién iniciada la sesión o actualizándose). */
+function isNotRunning(error: unknown): boolean {
+  return /Failed to connect|Could not connect|ECONNREFUSED|fetch failed/i.test(String(error))
+}
+
+type Deps = {
+  post: (url: string, body: string, timeoutMs: number) => Promise<string>
+  /** Abre Ollama en Windows si no está corriendo. */
+  launch: () => Promise<void>
+  sleep: (ms: number) => Promise<void>
+}
+
+const defaultDeps: Deps = {
+  post: (url, body, timeoutMs) =>
+    existsSync(WINDOWS_CURL)
+      ? postWithWindowsCurl(url, body, timeoutMs)
+      : fetch(url, { method: 'POST', body, signal: AbortSignal.timeout(timeoutMs) }).then((r) =>
+          r.text(),
+        ),
+  launch: async () => {
+    const child = spawn(
+      '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        'Start-Process "$env:LOCALAPPDATA\\Programs\\Ollama\\ollama app.exe"',
+      ],
+      { stdio: 'ignore', detached: true },
+    )
+    child.on('error', () => {})
+    child.unref()
+  },
+  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+}
+
+/** Cuántas veces reintentar mientras Ollama arranca, y cada cuánto. */
+const RETRIES = 8
+const RETRY_MS = 2500
+
+export function ollamaModel(
+  config: Config['llm'],
+  timeoutMs = 120_000,
+  deps: Deps = defaultDeps,
+): ChatModel {
+  let lastLaunch = 0
   return async (messages, schema) => {
     const url = `${config.url}/api/chat`
     const body = JSON.stringify({
@@ -55,11 +106,23 @@ export function ollamaModel(config: Config['llm'], timeoutMs = 120_000): ChatMod
       // Temperatura 0: misma pregunta, misma decisión (predecible para un asistente que decide)
       options: { temperature: 0, num_ctx: 8192 },
     })
-    const raw = existsSync(WINDOWS_CURL)
-      ? await postWithWindowsCurl(url, body, timeoutMs)
-      : await (
-          await fetch(url, { method: 'POST', body, signal: AbortSignal.timeout(timeoutMs) })
-        ).text()
+
+    // Al iniciar sesión, Nexo puede estar listo antes que Ollama (que además se actualiza
+    // solo): se espera un poco, y si no aparece se abre una vez
+    let raw: string | undefined
+    for (let attempt = 0; raw === undefined; attempt++) {
+      try {
+        raw = await deps.post(url, body, timeoutMs)
+      } catch (error) {
+        if (!isNotRunning(error)) throw error
+        if (attempt >= RETRIES) throw new ModelUnavailableError()
+        if (attempt === 1 && Date.now() - lastLaunch > 60_000) {
+          lastLaunch = Date.now()
+          await deps.launch()
+        }
+        await deps.sleep(RETRY_MS)
+      }
+    }
     const parsed = JSON.parse(raw) as { message?: { content?: string }; error?: string }
     if (parsed.error) throw new Error(`Ollama: ${parsed.error}`)
     return parsed.message?.content ?? ''

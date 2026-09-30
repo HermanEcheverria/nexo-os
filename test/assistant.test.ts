@@ -187,3 +187,17 @@ describe('verificación del resumen', () => {
     }
   })
 })
+
+describe('órdenes de revisar', () => {
+  it('si el modelo nombra al agente pero solo responde, una orden de revisar lo lanza', async () => {
+    const reply = JSON.stringify({
+      intencion: 'responder',
+      agente: 'inventario',
+      respuesta: 'Tu PC está bien.',
+    })
+    const ask = (q: string) => new Assistant(fakeModel(reply).model).ask(q, context)
+    expect((await ask('revisa la seguridad de mi PC')).intencion).toBe('ejecutar_agente')
+    // Una pregunta no es una orden: se queda en responder
+    expect((await ask('¿mi PC está segura?')).intencion).toBe('responder')
+  })
+})

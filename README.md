@@ -37,6 +37,11 @@ Podrías hacer
 - **Limpiador:** cachés y temporales que se regeneran solos (npm, pip, pnpm, Playwright, temporales de Windows).
 - **Jardinero:** tus proyectos con git: cambios sin commit, commits sin subir, dependencias de proyectos inactivos.
 - **Guardián:** actualizaciones pendientes de Ubuntu (apt) y de Windows (winget).
+- **Centinela:** antivirus y firewall (según el Centro de Seguridad de Windows), puertos abiertos a
+  toda la red con los riesgosos marcados, programas que arrancan con Windows y secretos versionados
+  en tus repositorios (sin guardar nunca su valor).
+- **Salud:** desgaste de la batería (informe de `powercfg`), temperatura y uso de la GPU, memoria,
+  procesos que más consumen y estado de los discos.
 
 Los agentes nunca reciben una terminal: solo pueden llamar herramientas específicas. Las
 herramientas corren programas sin shell y los scripts de PowerShell son fijos (los datos viajan

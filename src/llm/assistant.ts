@@ -75,7 +75,7 @@ Cómo responder:
   que empiece con "- ", con su nombre y su tamaño tal como aparecen en DATOS, sin omitir ninguno.
 - Si pregunta qué puedes hacer o cuáles son tus capacidades: usa "responder" y describe tus capacidades
   en viñetas, SIN cifras ni datos de su PC: explicar el estado de su PC (espacio, Descargas, cachés,
-  proyectos y actualizaciones), contarle las propuestas que esperan su aprobación, pedirle a un agente
+  proyectos, actualizaciones, seguridad y salud del equipo), contarle las propuestas que esperan su aprobación, pedirle a un agente
   que revise de nuevo y llevarlo a Aprobaciones. Aclara que no puedes buscar dentro de archivos ni
   cambiar nada de la PC: él decide.
 
@@ -87,8 +87,22 @@ Reglas:
 - Usa "ver_aprobaciones" SOLO para eso (liberar espacio, limpiar, borrar, aprobar o las propuestas). Para cualquier otra pregunta sobre la PC usa "responder".
 - Si piden revisar, actualizar o volver a mirar algo, usa "ejecutar_agente" con el agente que corresponde:
   proyectos, repositorios o commits → "jardinero"; Descargas o espacio en disco → "inventario";
-  cachés o temporales → "limpiador"; actualizaciones o programas → "guardian". Los agentes únicamente leen.
-- Usa "fuera_de_alcance" si piden algo que no tiene que ver con cuidar esta PC.`
+  cachés o temporales → "limpiador"; actualizaciones o programas → "guardian";
+  seguridad, antivirus, firewall, puertos o secretos → "centinela";
+  batería, temperatura, memoria, lentitud o salud del equipo → "salud". Los agentes únicamente leen.
+- Usa "fuera_de_alcance" si piden algo que no tiene que ver con cuidar esta PC.
+
+Ejemplos de intención (con verbos como revisa, actualiza, vuelve a mirar o analiza, SIEMPRE "ejecutar_agente"):
+- "revisa la seguridad de mi PC" → ejecutar_agente, agente "centinela"
+- "analiza la salud de mi laptop" → ejecutar_agente, agente "salud"
+- "vuelve a mirar mis proyectos" → ejecutar_agente, agente "jardinero"
+- "¿mi PC está segura?" → responder (con los hallazgos del Centinela)
+- "borra lo que no uso" → ver_aprobaciones
+- "¿qué puedes hacer?" → responder, sin cifras`
+
+/** "revisa…", "analiza…", "vuelve a mirar…": una orden de revisar algo de nuevo. */
+export const REVIEW_REQUEST =
+  /^\s*(por favor,?\s+)?(revisa|revisá|analiza|escanea|chequea|verifica|actualiza|vuelve a (mirar|revisar|analizar))\b/i
 
 export class Assistant {
   constructor(
@@ -139,6 +153,11 @@ export class Assistant {
     // Coherencia: pedir un agente exige nombrarlo
     if (answer.intencion === 'ejecutar_agente' && !answer.agente)
       return { ...answer, intencion: 'responder' }
+    // Un modelo pequeño a veces nombra al agente correcto pero solo "responde". Si el mensaje
+    // es una orden de revisar, se lanza: es seguro, los agentes solo leen
+    if (answer.intencion === 'responder' && answer.agente && REVIEW_REQUEST.test(question)) {
+      return { ...answer, intencion: 'ejecutar_agente' }
+    }
     return answer
   }
 

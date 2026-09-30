@@ -56,6 +56,13 @@ const casos: {
     debeMencionar: context.pending.slice(0, 3).map((a) => a.title.match(/«(.+?)»/)?.[1] ?? a.title),
   },
   { pregunta: '¿qué puedes hacer?', intencion: 'responder', noDebeMencionar: ['Andrés', ' GB'] },
+  { pregunta: '¿cómo está mi batería?', intencion: 'responder', debeMencionar: ['47'] },
+  {
+    pregunta: '¿mi PC está segura?',
+    intencion: ['responder', 'ejecutar_agente'],
+    debeMencionar: ['5432'],
+  },
+  { pregunta: 'revisa la seguridad de mi PC', intencion: 'ejecutar_agente', agente: 'centinela' },
   { pregunta: '¿cuál es la capital de Francia?', intencion: 'fuera_de_alcance' },
 ]
 

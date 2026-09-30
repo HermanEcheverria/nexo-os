@@ -7,7 +7,9 @@ import { z } from 'zod'
 import { defineTool } from '../kernel/tools'
 import { parseAptUpgradable, parseWingetUpgrade } from './parsers'
 import { powershell, run, toWslPath } from './shell'
+import { healthTools } from './health'
 import { quarantineTool } from './quarantine'
+import { securityTools } from './security'
 import { PS_PRIVACY, windowsInfo } from './windows'
 
 const HOME = homedir()
@@ -200,6 +202,8 @@ export const tools = {
   }),
 
   'archivos.cuarentena': quarantineTool,
+  ...securityTools,
+  ...healthTools,
 }
 
 export type Tools = typeof tools

@@ -12,6 +12,7 @@ import { ConversationService } from './llm/conversations'
 import { ModelUnavailableError } from './llm/ollama'
 import type { Kernel } from './kernel/kernel'
 import { buildReport } from './kernel/report'
+import { lastRunSummary, runDetails } from './kernel/runs'
 import type { Registry } from './kernel/tools'
 import { APP_ORIGINS, hostGuard, tokenGuard } from './security'
 
@@ -83,16 +84,27 @@ export function createServer<R extends Registry>(
 
   app.get('/agentes', async (c) =>
     c.json(
-      kernel.listAgents().map((a) => ({
-        name: a.name,
-        title: a.title,
-        description: a.description,
-        everyMinutes: a.everyMinutes,
-        onLogin: a.onLogin,
-        capabilities: a.capabilities,
-      })),
+      await Promise.all(
+        kernel.listAgents().map(async (a) => ({
+          name: a.name,
+          title: a.title,
+          description: a.description,
+          everyMinutes: a.everyMinutes,
+          onLogin: a.onLogin,
+          // Con su riesgo: "lee" o "cambia" (lo que cambia pasa por tu aprobación)
+          capabilities: a.capabilities.map((name) => ({ name, risk: kernel.toolRisk(name) })),
+          lastRun: await lastRunSummary(db, a.name),
+        })),
+      ),
     ),
   )
+
+  // Detalle de una ejecución: pasos, hallazgos, propuestas y qué cambió
+  app.get('/procesos/:pid', async (c) => {
+    const pid = Number(c.req.param('pid'))
+    const details = Number.isInteger(pid) && pid > 0 ? await runDetails(db, pid) : null
+    return details ? c.json(details) : c.json({ error: 'No existe ese proceso' }, 404)
+  })
 
   // Bitácora en vivo (Server-Sent Events): cada evento del núcleo llega al instante
   app.get('/eventos', (c) =>

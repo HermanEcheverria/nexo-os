@@ -7,7 +7,7 @@ import type { Agent, AgentContext } from './agent'
 import type { Db } from './db/client'
 import { findings, journal, memory, processes } from './db/schema'
 import type { PrivacyGuard } from './privacy'
-import { createToolbox, type Registry } from './tools'
+import { createToolbox, type Registry, type Risk } from './tools'
 
 type Trigger = (typeof processes.$inferSelect)['trigger']
 
@@ -70,6 +70,11 @@ export class Kernel<R extends Registry> {
       (agent) => this.followUp(agent),
     )
     this.followUpDelayMs = options.followUpDelayMs ?? 3000
+  }
+
+  /** Nivel de riesgo de una herramienta (lee, cambia, sale de la PC). */
+  toolRisk(name: string): Risk | null {
+    return this.tools[name]?.risk ?? null
   }
 
   listAgents(): Agent<R>[] {

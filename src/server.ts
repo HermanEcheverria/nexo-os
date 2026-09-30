@@ -16,6 +16,9 @@ import { lastRunSummary, runDetails } from './kernel/runs'
 import type { Registry } from './kernel/tools'
 import { APP_ORIGINS, hostGuard, tokenGuard } from './security'
 
+/** Eventos que cambian las cifras del parte (y por tanto el resumen). */
+const CHANGES_FIGURES = new Set(['exit', 'action_done', 'rejected', 'undone', 'purged'])
+
 /**
  * API local del servicio. Solo escucha en 127.0.0.1: nada fuera de tu PC puede hablarle.
  * El comando `nexo` la usa cuando el servicio está corriendo.
@@ -28,7 +31,15 @@ export function createServer<R extends Registry>(
     port,
     assistant,
     name = 'amigo',
-  }: { token: string; port: number; assistant?: Assistant; name?: string },
+    summaryDelayMs = 20_000,
+  }: {
+    token: string
+    port: number
+    assistant?: Assistant
+    name?: string
+    /** Espera tras el último cambio antes de volver a redactar el resumen. */
+    summaryDelayMs?: number
+  },
 ) {
   const app = new Hono()
 
@@ -72,6 +83,20 @@ export function createServer<R extends Registry>(
       await kernel.log('summary_failed', { error: String(error) })
     }
   }
+
+  // Cuando un agente termina o decides una propuesta, las cifras cambian: el resumen
+  // se vuelve a redactar para que nunca contradiga al parte. Se agrupan los cambios
+  // seguidos (varios agentes a la vez) en una sola redacción.
+  let summaryTimer: NodeJS.Timeout | undefined
+  function scheduleSummary() {
+    if (!assistant) return
+    clearTimeout(summaryTimer)
+    summaryTimer = setTimeout(() => void refreshSummary(), summaryDelayMs)
+    summaryTimer.unref()
+  }
+  kernel.events.on('event', (event) => {
+    if (CHANGES_FIGURES.has(event.type)) scheduleSummary()
+  })
 
   // Orden: primero el Host, luego CORS (solo la app), luego el token
   app.use('*', hostGuard(port))
@@ -121,18 +146,26 @@ export function createServer<R extends Registry>(
       }
     }),
   )
-  app.get('/parte', async (c) =>
-    c.json({
-      ...(await buildReport(db, kernel.listAgents())),
+  app.get('/parte', async (c) => {
+    const report = await buildReport(db, kernel.listAgents())
+    const summary = ((await db.select().from(memory).where(summaryKey))[0]?.value ?? null) as {
+      text: string
+      at: string
+    } | null
+    // Un resumen anterior a la última revisión (p. ej. de antes de reiniciar) se rehace
+    const lastCheck = report.agents
+      .map((a) => a.checkedAt ?? '')
+      .sort()
+      .at(-1)
+    if (summary && lastCheck && summary.at < lastCheck) scheduleSummary()
+    return c.json({
+      ...report,
       pendingActions: await kernel.actions.pendingCount(),
-      summary: ((await db.select().from(memory).where(summaryKey))[0]?.value ?? null) as {
-        text: string
-        at: string
-      } | null,
+      summary,
       assistant: Boolean(assistant),
       userName: name,
-    }),
-  )
+    })
+  })
   app.get('/ps', async (c) =>
     c.json(
       await db

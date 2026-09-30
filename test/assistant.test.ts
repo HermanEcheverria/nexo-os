@@ -128,7 +128,12 @@ describe('/preguntar', () => {
       new PrivacyGuard([], '.p'),
     )
     const assistant = new Assistant(fakeModel(reply).model)
-    return createServer(database.db, kernel, { token: 't', port: 4747, assistant })
+    return createServer(database.db, kernel, {
+      token: 't',
+      port: 4747,
+      assistant,
+      summaryDelayMs: 5,
+    })
   }
   const ask = (app: ReturnType<typeof server>, body: unknown) =>
     app.request('http://127.0.0.1:4747/preguntar', {
@@ -154,6 +159,20 @@ describe('/preguntar', () => {
     expect(res.status).toBe(200)
     expect(body.pid).toBeGreaterThan(0)
     expect(runs).toBe(1)
+  })
+
+  it('cuando un agente termina, el resumen se vuelve a redactar con las cifras nuevas', async () => {
+    const app = server(JSON.stringify({ resumen: 'No hay nada urgente.' }))
+    const headers = { host: '127.0.0.1:4747', authorization: 'Bearer t' }
+    const summary = async () =>
+      (
+        (await (await app.request('http://127.0.0.1:4747/parte', { headers })).json()) as {
+          summary: { text: string } | null
+        }
+      ).summary
+    expect(await summary()).toBeNull()
+    await app.request('http://127.0.0.1:4747/ejecutar/inventario', { method: 'POST', headers })
+    await expect.poll(summary, { timeout: 2000 }).toMatchObject({ text: 'No hay nada urgente.' })
   })
 
   it('rechaza preguntas vacías o demasiado largas', async () => {
